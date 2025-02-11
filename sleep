@@ -1,0 +1,57 @@
+import requests
+import json
+import pandas as pd
+from datetime import datetime
+
+# Replace with your Fitbit API credentials
+CLIENT_ID = "YOUR_CLIENT_ID"
+CLIENT_SECRET = "YOUR_CLIENT_SECRET"
+ACCESS_TOKEN = "YOUR_ACCESS_TOKEN"  # Needs to be refreshed periodically
+
+# Fitbit API endpoint for sleep data
+FITBIT_SLEEP_API_URL = "https://api.fitbit.com/1.2/user/-/sleep/date/{date}.json"
+
+# Function to fetch sleep data
+def fetch_sleep_data(date):
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
+    response = requests.get(FITBIT_SLEEP_API_URL.format(date=date), headers=headers)
+
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error: {response.status_code}, {response.text}")
+        return None
+
+# Function to process and extract sleep data
+def extract_sleep_metrics(data):
+    if not data or "sleep" not in data or len(data["sleep"]) == 0:
+        return None  # No sleep data available
+
+    sleep_info = data["sleep"][0]  # Assuming one sleep session per night
+
+    return {
+        "Date": sleep_info["dateOfSleep"],
+        "Total Sleep Time (min)": sleep_info["duration"] // 60000,
+        "Time in Bed (min)": sleep_info["timeInBed"],
+        "Deep Sleep (min)": sleep_info["stages"]["deep"],
+        "Light Sleep (min)": sleep_info["stages"]["light"],
+        "REM Sleep (min)": sleep_info["stages"]["rem"],
+        "Awake Time (min)": sleep_info["minutesAwake"],
+        "Sleep Efficiency (%)": round((sleep_info["duration"] / sleep_info["timeInBed"]) * 100, 2),
+        "Sleep Score": sleep_info.get("efficiency", "N/A"),  # Fitbit sometimes provides efficiency as a score
+    }
+
+# Date to fetch (modify as needed)
+date_to_fetch = datetime.today().strftime('%Y-%m-%d')
+
+# Fetch and extract sleep data
+sleep_data = fetch_sleep_data(date_to_fetch)
+sleep_metrics = extract_sleep_metrics(sleep_data)
+
+# Save to CSV if data exists
+if sleep_metrics:
+    df = pd.DataFrame([sleep_metrics])  # Convert to DataFrame
+    df.to_csv("fitbit_sleep_data.csv", mode="a", index=False, header=True)  # Append to CSV file
+    print("Sleep data saved to fitbit_sleep_data.csv")
+else:
+    print("No sleep data available for this date.")
